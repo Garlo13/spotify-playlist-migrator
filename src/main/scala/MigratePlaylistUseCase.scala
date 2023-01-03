@@ -7,7 +7,8 @@ import scala.util.chaining._
 
 class MigratePlaylistUseCase(
   spotifyRepository: SpotifyRepository,
-  amazonMusicRepository: AmazonMusicRepository
+  amazonMusicRepository: AmazonMusicRepository,
+  trackComparator: TrackComparator
 ) {
 
   def migratePlaylist(spotifyPlaylistName: String): Unit =
@@ -25,14 +26,33 @@ class MigratePlaylistUseCase(
   private def migrateTracksToAmazonMusic(tracks: List[Track]): Unit =
     tracks.foreach { spotifyTrack =>
       searchTrack(spotifyTrack)
-        .tap(printLogIfNoResult(_, spotifyTrack))
         .pipe(selectAmazonMusicTrack(_, spotifyTrack))
-        .tap(printLogIfNoTargetTrack(_, spotifyTrack))
-        .pipe(addTrackToAmazonMusicPlaylist(_))
+        .pipe(tryDifferentSearchIfNoTrackSelected(_, spotifyTrack))
+        .pipe(addTrackToAmazonMusicPlaylist)
     }
 
   private def searchTrack(spotifyTrack: Track): Option[List[AmazonMusicTrack]] =
     amazonMusicRepository.searchTrack(spotifyTrack.name, spotifyTrack.artists.head, spotifyTrack.album)
+  
+  private def selectAmazonMusicTrack(
+    searchResult: Option[List[AmazonMusicTrack]], 
+    spotifyTrack: Track
+  ): Option[AmazonMusicTrack] =
+    searchResult.flatMap(amazonMusicTracks => amazonMusicTracks.find(trackComparator.areEquals(_, spotifyTrack)))
+
+  private def tryDifferentSearchIfNoTrackSelected(
+    maybeTargetTrack: Option[AmazonMusicTrack],
+    spotifyTrack: Track
+  ): Option[AmazonMusicTrack] =
+    maybeTargetTrack.orElse(
+      searchTrackWithoutAlbumName(spotifyTrack)
+        .tap(printLogIfNoResult(_, spotifyTrack))
+        .pipe(selectAmazonMusicTrack(_, spotifyTrack))
+        .tap(printLogIfNoTargetTrack(_, spotifyTrack))
+    )
+
+  private def searchTrackWithoutAlbumName(spotifyTrack: Track): Option[List[AmazonMusicTrack]] =
+    amazonMusicRepository.searchTrack(spotifyTrack.name, spotifyTrack.artists.head, "")
 
   private def printLogIfNoResult(searchResult: Option[List[AmazonMusicTrack]], spotifyTrack: Track): Unit =
     searchResult.getOrElse(println(s"No result for ${spotifyTrack.name}, ${spotifyTrack.artists.head} in amazon"))
@@ -42,26 +62,6 @@ class MigratePlaylistUseCase(
       .getOrElse(
         println(s"The searched result does not contain track ${spotifyTrack.name}, ${spotifyTrack.artists.head}")
       )
-  
-  private def selectAmazonMusicTrack(
-    searchResult: Option[List[AmazonMusicTrack]], 
-    spotifyTrack: Track
-  ): Option[AmazonMusicTrack] =
-    searchResult.flatMap { amazonMusicTracks =>
-      amazonMusicTracks.find(selectTargetTrack(_, spotifyTrack))
-    }
-
-  private def selectTargetTrack(amazonMusicTrack: AmazonMusicTrack, spotifyTrack: Track): Boolean = {
-    val sanitizedTrackName = sanitizeTrackName(spotifyTrack.name)
-
-    (amazonMusicTrack.name.toLowerCase.startsWith(sanitizedTrackName.toLowerCase) ||
-      sanitizedTrackName.toLowerCase.startsWith(amazonMusicTrack.name.toLowerCase)) &&
-      (amazonMusicTrack.artist.toLowerCase.startsWith(spotifyTrack.artists.head.toLowerCase) ||
-        spotifyTrack.artists.head.toLowerCase.startsWith(amazonMusicTrack.artist.toLowerCase))
-  }
-
-  private def sanitizeTrackName(trackName: String): String =
-    trackName.split("-|\\(").headOption.getOrElse(trackName)
 
   private def addTrackToAmazonMusicPlaylist(maybeTrack: Option[AmazonMusicTrack]): Unit =
     maybeTrack.foreach(amazonMusicTrack =>

@@ -14,8 +14,9 @@ object Main extends App {
 
   val spotifyRepository = new SpotifyRestRepository(ClientId, SecretId, RefreshToken)
   val amazonMusicRepository = new AmazonMusicRestRepository(AmazonMusicAuthenticationHeader, AmazonMusicPlaylistId)
+  val trackComparator = new TrackComparator
 
-  val useCase = new MigratePlaylistUseCase(spotifyRepository, amazonMusicRepository)
+  val useCase = new MigratePlaylistUseCase(spotifyRepository, amazonMusicRepository, trackComparator)
 
   print("Enter the Spotify playlist name to migrate: ")
   val spotifyPlaylistName = readLine()
