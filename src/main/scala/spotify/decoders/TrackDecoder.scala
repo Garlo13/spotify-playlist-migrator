@@ -15,8 +15,9 @@ object TrackDecoder {
         album <- c.downField("track").downField("album").downField("name").as[String]
         artists <- c.downField("track").downField("artists").as[List[Json]]
         artistsNames <- Traverse[List].traverse(artists)(_.hcursor.downField("name").as[String])
+        id <- c.downField("track").downField("id").as[String]
         name <- c.downField("track").downField("name").as[String]
-      } yield Track(name = name, artists = artistsNames, album = album, addedAt = LocalDateTime.parse(addedAt.init))
+      } yield Track(id = id, name = name, artists = artistsNames, album = album, addedAt = LocalDateTime.parse(addedAt.init))
   }
 
   implicit val trackPageDecoder: Decoder[TrackPage] = new Decoder[TrackPage] {
