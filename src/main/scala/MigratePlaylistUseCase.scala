@@ -1,29 +1,30 @@
-import amazonmusic.repository.AmazonMusicRepository
-import amazonmusic.model.{Track => AmazonMusicTrack}
-import spotify.model.{Playlist, Track}
-import spotify.repository.SpotifyRepository
+import model.{MusicRepository, Playlist, Track}
 
 import scala.util.chaining._
 
 class MigratePlaylistUseCase(
-  spotifyRepository: SpotifyRepository,
-  amazonMusicRepository: AmazonMusicRepository,
+  fromRepository: MusicRepository,
+  toRepository: MusicRepository,
   trackComparator: TrackComparator
 ) {
 
-  def migratePlaylist(spotifyPlaylistName: String): Unit =
-    getSpotifyTracks(spotifyPlaylistName).pipe(migrateTracksToAmazonMusic)
+  def migrate(spotifyPlaylistName: String): Unit =
+    getTracks(fromRepository, spotifyPlaylistName).pipe(migrateTracks)
 
-  private def getSpotifyTracks(spotifyPlaylistName: String): List[Track] =
-    spotifyRepository
+
+//  def migratePlaylist(spotifyPlaylistName: String): Unit =
+//    getTracks(spotifyPlaylistName).pipe(migrateTracks)
+
+  private def getTracks(repository: MusicRepository, spotifyPlaylistName: String): List[Track] =
+    repository
       .getPlaylists()
       .pipe(findPlayList(_, spotifyPlaylistName))
-      .pipe(playlist => spotifyRepository.getTracks(playlist.id))
+      .pipe(playlist => fromRepository.getTracks(playlist.id))
 
   private def findPlayList(playlists: List[Playlist], playlistName: String): Playlist =
     playlists.find(_.name == playlistName).getOrElse(throw PlayListNotFoundException(s"Play list not found"))
 
-  private def migrateTracksToAmazonMusic(tracks: List[Track]): Unit =
+  private def migrateTracks(tracks: List[Track]): Unit =
     tracks.foreach { spotifyTrack =>
       searchTrack(spotifyTrack)
         .pipe(selectAmazonMusicTrack(_, spotifyTrack))
@@ -31,19 +32,19 @@ class MigratePlaylistUseCase(
         .pipe(addTrackToAmazonMusicPlaylist)
     }
 
-  private def searchTrack(spotifyTrack: Track): Option[List[AmazonMusicTrack]] =
-    amazonMusicRepository.searchTrack(spotifyTrack.name, spotifyTrack.artists.head, spotifyTrack.album)
-  
+  private def searchTrack(spotifyTrack: Track): Option[List[Track]] =
+    toRepository.searchTrack(spotifyTrack.name, spotifyTrack.artists.head, spotifyTrack.album)
+
   private def selectAmazonMusicTrack(
-    searchResult: Option[List[AmazonMusicTrack]], 
+    searchResult: Option[List[Track]],
     spotifyTrack: Track
-  ): Option[AmazonMusicTrack] =
+  ): Option[Track] =
     searchResult.flatMap(amazonMusicTracks => amazonMusicTracks.find(trackComparator.areEquals(_, spotifyTrack)))
 
   private def tryDifferentSearchIfNoTrackSelected(
-    maybeTargetTrack: Option[AmazonMusicTrack],
+    maybeTargetTrack: Option[Track],
     spotifyTrack: Track
-  ): Option[AmazonMusicTrack] =
+  ): Option[Track] =
     maybeTargetTrack.orElse(
       searchTrackWithoutAlbumName(spotifyTrack)
         .tap(printLogIfNoResult(_, spotifyTrack))
@@ -51,21 +52,21 @@ class MigratePlaylistUseCase(
         .tap(printLogIfNoTargetTrack(_, spotifyTrack))
     )
 
-  private def searchTrackWithoutAlbumName(spotifyTrack: Track): Option[List[AmazonMusicTrack]] =
-    amazonMusicRepository.searchTrack(spotifyTrack.name, spotifyTrack.artists.head, "")
+  private def searchTrackWithoutAlbumName(spotifyTrack: Track): Option[List[Track]] =
+    toRepository.searchTrack(spotifyTrack.name, spotifyTrack.artists.head, "")
 
-  private def printLogIfNoResult(searchResult: Option[List[AmazonMusicTrack]], spotifyTrack: Track): Unit =
+  private def printLogIfNoResult(searchResult: Option[List[Track]], spotifyTrack: Track): Unit =
     searchResult.getOrElse(println(s"No result for ${spotifyTrack.name}, ${spotifyTrack.artists.head} in amazon"))
 
-  private def printLogIfNoTargetTrack(maybeAmazonMusicTrack: Option[AmazonMusicTrack], spotifyTrack: Track): Unit =
+  private def printLogIfNoTargetTrack(maybeAmazonMusicTrack: Option[Track], spotifyTrack: Track): Unit =
     maybeAmazonMusicTrack
       .getOrElse(
         println(s"The searched result does not contain track ${spotifyTrack.name}, ${spotifyTrack.artists.head}")
       )
 
-  private def addTrackToAmazonMusicPlaylist(maybeTrack: Option[AmazonMusicTrack]): Unit =
+  private def addTrackToAmazonMusicPlaylist(maybeTrack: Option[Track]): Unit =
     maybeTrack.foreach(amazonMusicTrack =>
-      amazonMusicRepository.addTrackToPlaylist(amazonMusicTrack.id.split(":").last, amazonMusicTrack.name)
+      toRepository.addTrackToPlaylist(amazonMusicTrack.id, amazonMusicTrack.name)
     )
 
   case class PlayListNotFoundException(message: String) extends RuntimeException(message)
