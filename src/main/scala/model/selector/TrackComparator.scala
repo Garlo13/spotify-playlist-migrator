@@ -1,3 +1,4 @@
+package model.selector
 
 import model.Track
 
@@ -11,16 +12,16 @@ class TrackComparator {
       haveSameTrackName(spotifyTrack.name, amazonMusicTrack.name)
 
   private def haveSameArtist(spotifyArtistName: String, amazonMusicArtistName: String): Boolean = {
-    val normalizedSpotifyArtistName = normalizeArtistName(spotifyArtistName.toLowerCase)
-    val normalizedAmazonMusicArtistName = normalizeArtistName(amazonMusicArtistName.toLowerCase)
+    val normalizedSpotifyArtistName = normalizeArtistName(sanitizeTrackName(spotifyArtistName.toLowerCase))
+    val normalizedAmazonMusicArtistName = normalizeArtistName(sanitizeTrackName(amazonMusicArtistName.toLowerCase))
 
     normalizedAmazonMusicArtistName.startsWith(normalizedSpotifyArtistName) ||
       normalizedSpotifyArtistName.startsWith(normalizedAmazonMusicArtistName)
   }
 
   private def haveSameTrackName(spotifyTrackName: String, amazonMusicTrackName: String): Boolean = {
-    val sanitizedSpotifyTrackName = sanitizeTrackName(spotifyTrackName).toLowerCase
-    val sanitizedAmazonMusicTrackName = sanitizeTrackName(amazonMusicTrackName).toLowerCase
+    val sanitizedSpotifyTrackName = sanitizeTrackName(normalizeArtistName(spotifyTrackName)).toLowerCase
+    val sanitizedAmazonMusicTrackName = sanitizeTrackName(normalizeArtistName(amazonMusicTrackName)).toLowerCase
 
     sanitizedAmazonMusicTrackName.startsWith(sanitizedSpotifyTrackName.toLowerCase) ||
       sanitizedSpotifyTrackName.startsWith(sanitizedAmazonMusicTrackName) ||
