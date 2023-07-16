@@ -26,7 +26,7 @@ class DeezerRestRepository(
         url = SearchEndpoint,
         params = Map(
           "access_token" -> accessToken,
-          "q" -> s"artist:\"${artist.split("\\{").head}\" track:\"${trackName.split("\\(").head}\" album:\"$album\""
+          "q" -> s"artist:\"${sanitize(artist)}\" track:\"${sanitize(trackName)}\" album:\"$album\""
         )
       )
       .text()
@@ -46,4 +46,8 @@ class DeezerRestRepository(
           "request_method" -> "post"
         )
       )
+
+  private def sanitize(string: String): String =
+    string.split("-|\\(|\\[|\\{").headOption.map(_.trim).getOrElse(string)
+
 }
