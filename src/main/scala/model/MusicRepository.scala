@@ -1,8 +1,10 @@
-package amazonmusic.repository
+package model
 
-import amazonmusic.model.Track
+trait MusicRepository {
 
-trait AmazonMusicRepository {
+  def getPlaylists(): List[Playlist]
+
+  def getTracks(playlistId: String): List[Track]
 
   def searchTrack(trackName: String, artist: String, album: String): Option[List[Track]]
 

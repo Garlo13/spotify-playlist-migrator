@@ -1,6 +1,8 @@
 package spotify.repository
 import io.circe.Json
 import io.circe.parser.parse
+import model.MusicRepository
+import spotify.converter.SpotifyConverter
 import spotify.decoders.SpotifyPlaylistDecoder.playlistPageDecoder
 import spotify.decoders.TrackDecoder.trackPageDecoder
 import spotify.exception.PlayListNotFoundException
@@ -12,10 +14,11 @@ import scala.annotation.tailrec
 import scala.util.chaining._
 
 class SpotifyRestRepository(
+  spotifyConverter: SpotifyConverter,
   clientId: String,
   secretId: String,
   refreshToken: String
-) extends SpotifyRepository {
+) extends MusicRepository {
 
   private val RefreshTokenEndpoint: String = "https://accounts.spotify.com/api/token"
   private val CurrentUserPlaylistEndpoint: String = "https://api.spotify.com/v1/me/playlists"
@@ -25,7 +28,7 @@ class SpotifyRestRepository(
   private val EncodedClientSecretId: String = Base64Encoder.encodeToString(s"$clientId:$secretId".getBytes(StandardCharsets.UTF_8))
   private val accessToken: String = getAccessToken()
 
-  override def getTracks(playlistId: String): List[Track] = {
+  override def getTracks(playlistId: String): List[model.Track] = {
     @tailrec
     def iterate(currentPage: TrackPage, accumulatedTracks: List[Track]): List[Track] = {
       currentPage.nextPage match {
@@ -40,10 +43,10 @@ class SpotifyRestRepository(
 
     val accumulatedTracks = firstPage.tracks
 
-    iterate(firstPage, accumulatedTracks)
+    iterate(firstPage, accumulatedTracks).map(spotifyConverter.toModel)
   }
 
-  override def getPlaylists(): List[Playlist] =
+  override def getPlaylists(): List[model.Playlist] =
     requests
       .get(
         CurrentUserPlaylistEndpoint,
@@ -54,7 +57,11 @@ class SpotifyRestRepository(
         parse(_)
           .flatMap(_.as[List[Playlist]])
           .getOrElse(List.empty)
-      )
+      ).pipe(_.map(spotifyConverter.toModel))
+
+  override def searchTrack(trackName: String, artist: String, album: String): Option[List[model.Track]] = ???
+
+  override def addTrackToPlaylist(id: String, name: String): Unit = ???
 
   private def getPage(pageUrl: String): TrackPage =
     requests

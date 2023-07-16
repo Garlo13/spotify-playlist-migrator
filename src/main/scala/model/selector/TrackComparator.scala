@@ -1,26 +1,27 @@
-import spotify.model.Track
-import amazonmusic.model.{Track => AmazonMusicTrack}
+package model.selector
+
+import model.Track
 
 import java.text.Normalizer
 import java.text.Normalizer.Form
 
 class TrackComparator {
 
-  def areEquals(amazonMusicTrack: AmazonMusicTrack, spotifyTrack: Track): Boolean =
-    haveSameArtist(spotifyTrack.artists, amazonMusicTrack.artist) &&
+  def areEquals(amazonMusicTrack: Track, spotifyTrack: Track): Boolean =
+    haveSameArtist(spotifyTrack.artists.head, amazonMusicTrack.artists.head) && //TODO: Fix artist.head
       haveSameTrackName(spotifyTrack.name, amazonMusicTrack.name)
 
-  private def haveSameArtist(spotifyArtistNames: List[String], amazonMusicArtistName: String): Boolean = {
-    val normalizedSpotifyArtistName = normalizeArtistName(spotifyArtistNames.head.toLowerCase)
-    val normalizedAmazonMusicArtistName = normalizeArtistName(amazonMusicArtistName.toLowerCase)
+  private def haveSameArtist(spotifyArtistName: String, amazonMusicArtistName: String): Boolean = {
+    val normalizedSpotifyArtistName = normalizeArtistName(sanitizeTrackName(spotifyArtistName.toLowerCase))
+    val normalizedAmazonMusicArtistName = normalizeArtistName(sanitizeTrackName(amazonMusicArtistName.toLowerCase))
 
     normalizedAmazonMusicArtistName.startsWith(normalizedSpotifyArtistName) ||
       normalizedSpotifyArtistName.startsWith(normalizedAmazonMusicArtistName)
   }
 
   private def haveSameTrackName(spotifyTrackName: String, amazonMusicTrackName: String): Boolean = {
-    val sanitizedSpotifyTrackName = sanitizeTrackName(spotifyTrackName).toLowerCase
-    val sanitizedAmazonMusicTrackName = sanitizeTrackName(amazonMusicTrackName).toLowerCase
+    val sanitizedSpotifyTrackName = sanitizeTrackName(normalizeArtistName(spotifyTrackName)).toLowerCase
+    val sanitizedAmazonMusicTrackName = sanitizeTrackName(normalizeArtistName(amazonMusicTrackName)).toLowerCase
 
     sanitizedAmazonMusicTrackName.startsWith(sanitizedSpotifyTrackName.toLowerCase) ||
       sanitizedSpotifyTrackName.startsWith(sanitizedAmazonMusicTrackName) ||

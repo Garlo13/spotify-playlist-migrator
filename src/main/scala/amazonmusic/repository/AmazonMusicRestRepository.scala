@@ -1,15 +1,18 @@
 package amazonmusic.repository
 
+import amazonmusic.converter.AmazonMusicConverter
 import amazonmusic.decoders.WidgetDecoder.WidgetsDecoder
 import amazonmusic.model.{Track, Widget}
 import io.circe.parser.parse
+import model.MusicRepository
 
 import scala.util.chaining._
 
 class AmazonMusicRestRepository(
+  amazonMusicConverter: AmazonMusicConverter,
   amazonAuthenticationHeader: String,
   amazonPlayListId: String
-) extends AmazonMusicRepository {
+) extends MusicRepository {
 
   val amazonFindTrackEndpoint: String = "https://eu.mesk.skill.music.a2z.com/api/showSearch"
   val amazonFindTrackPayload: Map[String, String] =
@@ -33,7 +36,11 @@ class AmazonMusicRestRepository(
       "version" -> "18"
     )
 
-  override def searchTrack(trackName: String, artist: String, album: String): Option[List[Track]] = {
+  override def getPlaylists(): List[model.Playlist] = ???
+
+  override def getTracks(playlistId: String): List[model.Track] = ???
+
+  override def searchTrack(trackName: String, artist: String, album: String): Option[List[model.Track]] = {
     val payload = amazonFindTrackPayload ++ List(
       "suggestedKeyword" ->
         s"${sanitizeName(trackName)} $artist ${sanitizeName(album)}",
@@ -50,6 +57,7 @@ class AmazonMusicRestRepository(
           .toOption
           .flatten
       )
+      .pipe(_.map(_.map(amazonMusicConverter.toModel)))
   }
 
   override def addTrackToPlaylist(id: String, name: String): Unit = {
